@@ -1,4 +1,5 @@
-import React, {useState, useCallback} from 'react';
+// screens/GalleryScreen.tsx
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -8,7 +9,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import {useFocusEffect} from '@react-navigation/native';
+// ❌ removed useFocusEffect to avoid undefined-is-not-a-function
 import {colors} from '../theme';
 import PhotoCard from '../components/PhotoCard';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -29,39 +30,43 @@ const GalleryScreen = () => {
       }
       setError(null);
 
+      // Debug: make sure this is a real function
+      console.log('typeof fetchAllPhotos =', typeof fetchAllPhotos);
+
       const data = await fetchAllPhotos();
 
-      // Sort by newest first
-      const sorted = data.sort(
+      // Make sure we have an array before sort to avoid runtime errors
+      const list: UploadResult[] = Array.isArray(data) ? data : [];
+
+      const sorted = [...list].sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
 
       setPhotos(sorted);
     } catch (err: any) {
-      setError(err.message || 'Failed to load photos');
-      Alert.alert('❌ Error', err.message || 'Failed to load photos');
+      const message = err?.message || 'Failed to load photos';
+      setError(message);
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // Auto reload when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      loadPhotos();
-    }, []),
-  );
+  // Load once when Gallery mounts
+  useEffect(() => {
+    loadPhotos();
+  }, []);
 
   const onRefresh = () => loadPhotos(true);
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyIcon}>📷</Text>
-      <Text style={styles.emptyTitle}>No Photos Yet</Text>
+      <Text style={styles.emptyTitle}>Your vault is empty</Text>
       <Text style={styles.emptySubtitle}>
-        Go to Camera tab and capture your first photo!
+        Capture a photo from the Camera tab to see it appear here.
       </Text>
     </View>
   );
@@ -69,11 +74,9 @@ const GalleryScreen = () => {
   const renderError = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyIcon}>⚠️</Text>
-      <Text style={styles.emptyTitle}>Something went wrong</Text>
+      <Text style={styles.emptyTitle}>Unable to load photos</Text>
       <Text style={styles.emptySubtitle}>{error}</Text>
-      <TouchableOpacity
-        style={styles.retryButton}
-        onPress={() => loadPhotos()}>
+      <TouchableOpacity style={styles.retryButton} onPress={() => loadPhotos()}>
         <Text style={styles.retryText}>Retry</Text>
       </TouchableOpacity>
     </View>
@@ -81,9 +84,14 @@ const GalleryScreen = () => {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>My Vault</Text>
+      <View>
+        <Text style={styles.headerTitle}>My Vault</Text>
+        <Text style={styles.headerSubtitle}>All your secure photos</Text>
+      </View>
       <View style={styles.countBadge}>
-        <Text style={styles.countText}>{photos.length} photos</Text>
+        <Text style={styles.countText}>
+          {photos.length === 0 ? 'No photos' : `${photos.length} photos`}
+        </Text>
       </View>
     </View>
   );
@@ -103,7 +111,9 @@ const GalleryScreen = () => {
           />
         )}
         ListHeaderComponent={renderHeader}
-        ListEmptyComponent={error ? renderError() : renderEmpty()}
+        ListEmptyComponent={() =>
+          error ? renderError() : renderEmpty()
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -134,6 +144,8 @@ const styles = StyleSheet.create({
   emptyList: {
     flexGrow: 1,
   },
+
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -146,10 +158,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   headerTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     color: colors.black,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: colors.grey600,
+    marginTop: 2,
   },
   countBadge: {
     backgroundColor: colors.greenPale,
@@ -164,6 +181,8 @@ const styles = StyleSheet.create({
     color: colors.green,
     fontWeight: '700',
   },
+
+  // Empty / error
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -201,4 +220,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default GalleryScreen;
+export default GalleryScreen

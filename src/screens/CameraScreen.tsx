@@ -13,17 +13,18 @@ import {
   useCameraPermission,
 } from 'react-native-vision-camera';
 import ImageResizer from '@bam.tech/react-native-image-resizer';
+import RNFS from 'react-native-fs';
+
 import {colors} from '../theme';
 import LoadingOverlay from '../components/LoadingOverlay';
 import {uploadToCloudinary} from '../services/cloudinary';
 import {getExifData} from '../services/exif';
-import RNFS from 'react-native-fs';
 import {requestAllPermissions} from '../services/permissions';
 
 const CameraScreen = () => {
   const {hasPermission, requestPermission} = useCameraPermission();
   const device = useCameraDevice('back');
-  const camera = useRef<Camera>(null);
+  const cameraRef = useRef<Camera>(null);
 
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
@@ -39,51 +40,8 @@ const CameraScreen = () => {
     setup();
   }, [hasPermission, requestPermission]);
 
-  // ─── Test 1: Basic internet ───────────────────────────────
-  const testNetwork = () => {
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', 'https://httpbin.org/get');
-      xhr.timeout = 10000;
-      xhr.onload = () =>
-        Alert.alert('✅ Internet Works', `Status: ${xhr.status}`);
-      xhr.onerror = () =>
-        Alert.alert('❌ No Internet', 'Basic internet request failed');
-      xhr.ontimeout = () =>
-        Alert.alert('❌ Timeout', 'Request timed out after 10s');
-      xhr.send();
-    } catch (e: any) {
-      Alert.alert('❌ Exception', e.message);
-    }
-  };
-
-  // ─── Test 2: Cloudinary reachable ────────────────────────
-  const testCloudinary = () => {
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open(
-        'GET',
-        'https://api.cloudinary.com/v1_1/ds3x2mbi3/image/upload',
-      );
-      xhr.timeout = 10000;
-      xhr.onload = () =>
-        Alert.alert(
-          '✅ Cloudinary Reachable',
-          `Status: ${xhr.status}\n${xhr.responseText.substring(0, 120)}`,
-        );
-      xhr.onerror = () =>
-        Alert.alert('❌ Cloudinary Blocked', 'Cannot reach Cloudinary API');
-      xhr.ontimeout = () =>
-        Alert.alert('❌ Timeout', 'Cloudinary request timed out');
-      xhr.send();
-    } catch (e: any) {
-      Alert.alert('❌ Exception', e.message);
-    }
-  };
-
-  // ─── Main capture + upload flow ──────────────────────────
   const handleCapture = async () => {
-    if (!camera.current) {
+    if (!cameraRef.current) {
       return;
     }
 
@@ -92,8 +50,8 @@ const CameraScreen = () => {
       setLoading(true);
 
       // Step 1: Capture
-      const photo = await camera.current.takePhoto({
-        flash: flash,
+      const photo = await cameraRef.current.takePhoto({
+        flash,
       });
 
       const originalPath = `file://${photo.path}`;
@@ -103,7 +61,7 @@ const CameraScreen = () => {
       const originalSize = originalStat.size;
 
       // Step 3: Read EXIF before compression
-      setLoadingMessage('Reading EXIF data...');
+      setLoadingMessage('Reading photo details...');
       let exifData = null;
       try {
         exifData = await getExifData(photo.path);
@@ -112,7 +70,7 @@ const CameraScreen = () => {
       }
 
       // Step 4: Compress image
-      setLoadingMessage('Compressing image...');
+      setLoadingMessage('Optimizing photo...');
       const compressed = await ImageResizer.createResizedImage(
         originalPath,
         1920,
@@ -122,17 +80,15 @@ const CameraScreen = () => {
         0,
       );
 
-      // Step 5: Upload to Cloudinary (uses new uploadToCloudinary)
-      setLoadingMessage('Uploading to cloud...');
+      // Step 5: Upload to Cloudinary
+      setLoadingMessage('Uploading securely...');
       await uploadToCloudinary(compressed.uri, originalSize, exifData);
 
       setLoading(false);
-      Alert.alert('✅ Success', 'Photo uploaded successfully!', [
-        {text: 'OK'},
-      ]);
+      Alert.alert('Uploaded', 'Photo saved to your vault successfully.');
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('❌ Upload Error', error.message || 'Something went wrong');
+      Alert.alert('Upload Error', error.message || 'Something went wrong');
     }
   };
 
@@ -140,8 +96,10 @@ const CameraScreen = () => {
   if (!hasPermission) {
     return (
       <View style={styles.centered}>
+        <Text style={styles.permissionTitle}>Camera access needed</Text>
         <Text style={styles.permissionText}>
-          Camera permission is required
+          We use your camera only to capture photos and upload them securely to
+          your private vault.
         </Text>
         <TouchableOpacity
           style={styles.permissionButton}
@@ -155,7 +113,10 @@ const CameraScreen = () => {
   if (!device) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.permissionText}>No camera device found</Text>
+        <Text style={styles.permissionTitle}>No camera found</Text>
+        <Text style={styles.permissionText}>
+          We couldn’t detect a camera on this device.
+        </Text>
       </View>
     );
   }
@@ -165,54 +126,53 @@ const CameraScreen = () => {
     <View style={styles.container}>
       {/* Camera Preview */}
       <Camera
-        ref={camera}
+        ref={cameraRef}
         style={styles.camera}
         device={device}
         isActive={true}
         photo={true}
       />
 
-      {/* Top Controls */}
-      <View style={styles.topControls}>
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <View style={styles.topLeft}>
+          <Text style={styles.appTitle}>MiniPhotoVault</Text>
+          <Text style={styles.appSubtitle}>Capture and auto‑secure</Text>
+        </View>
+
         <TouchableOpacity
-          style={styles.flashButton}
-          onPress={() =>
-            setFlash(prev => (prev === 'off' ? 'on' : 'off'))
-          }>
-          <Text style={styles.flashText}>
-            {flash === 'off' ? '⚡ Flash Off' : '⚡ Flash On'}
+          style={styles.flashChip}
+          onPress={() => setFlash(prev => (prev === 'off' ? 'on' : 'off'))}>
+          <Text style={styles.flashIcon}>⚡</Text>
+          <Text style={styles.flashLabel}>
+            {flash === 'off' ? 'Flash Off' : 'Flash On'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Controls */}
-      <View style={styles.bottomControls}>
-        {/* Test Buttons */}
-        <View style={styles.testRow}>
+      {/* Bottom Sheet Controls */}
+      <View style={styles.bottomSheet}>
+        <View style={styles.statusRow}>
+          <View style={styles.statusPill}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Smart compression enabled</Text>
+          </View>
+          <Text style={styles.statusSecondary}>75% quality • EXIF preserved</Text>
+        </View>
+
+        <Text style={styles.captureHint}>Tap the shutter to capture</Text>
+
+        <View style={styles.captureRow}>
           <TouchableOpacity
-            style={styles.testButton}
-            onPress={testNetwork}>
-            <Text style={styles.testButtonText}>🌐 Test Internet</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={testCloudinary}>
-            <Text style={styles.testButtonText}>☁️ Test Cloudinary</Text>
+            style={styles.captureOuter}
+            onPress={handleCapture}
+            activeOpacity={0.8}>
+            <View style={styles.captureInner} />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.hintText}>Tap to capture</Text>
-
-        {/* Capture Button */}
-        <TouchableOpacity
-          style={styles.captureButton}
-          onPress={handleCapture}
-          activeOpacity={0.8}>
-          <View style={styles.captureInner} />
-        </TouchableOpacity>
-
-        <Text style={styles.qualityText}>
-          75% quality • Auto compress
+        <Text style={styles.bottomNote}>
+          Photos are uploaded securely and won’t be stored in your system gallery.
         </Text>
       </View>
 
@@ -236,15 +196,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     padding: 24,
   },
-  permissionText: {
-    fontSize: 16,
+  permissionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.black,
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: 20,
+  },
+  permissionText: {
+    fontSize: 14,
+    color: colors.grey600,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
   },
   permissionButton: {
     backgroundColor: colors.green,
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingVertical: 12,
     borderRadius: 24,
   },
@@ -253,76 +221,121 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
-  topControls: {
+
+  // Top bar
+  topBar: {
     position: 'absolute',
-    top: 50,
+    top: 40,
+    left: 20,
     right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  flashButton: {
+  topLeft: {
+    flexDirection: 'column',
+  },
+  appTitle: {
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  appSubtitle: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  flashChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
   },
-  flashText: {
+  flashIcon: {
+    fontSize: 16,
+    marginRight: 6,
+    color: colors.white,
+  },
+  flashLabel: {
     color: colors.white,
     fontSize: 13,
     fontWeight: '600',
   },
-  bottomControls: {
+
+  // Bottom sheet
+  bottomSheet: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
-    paddingBottom: 40,
+    bottom: 0,
+    paddingHorizontal: 24,
     paddingTop: 16,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    gap: 10,
+    paddingBottom: 32,
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  testRow: {
+  statusRow: {
+    marginBottom: 10,
+  },
+  statusPill: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 4,
-  },
-  testButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  testButtonText: {
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.green,
+    marginRight: 6,
+  },
+  statusText: {
     color: colors.white,
     fontSize: 12,
     fontWeight: '600',
   },
-  hintText: {
-    color: colors.white,
-    fontSize: 13,
-    opacity: 0.8,
+  statusSecondary: {
+    marginTop: 6,
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
   },
-  captureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
+  captureHint: {
+    marginTop: 8,
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+  },
+  captureRow: {
+    marginTop: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureOuter: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
     borderWidth: 3,
     borderColor: colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   captureInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.white,
   },
-  qualityText: {
+  bottomNote: {
+    marginTop: 12,
+    textAlign: 'center',
     color: colors.greenLight,
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 11,
   },
 });
 
