@@ -3,7 +3,7 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 project.ext.vectoricons = [
     // List all fonts you use from react-native-vector-icons
-    iconFontNames: ['Feather.ttf']
+    iconFontNames: ['Feather.ttf','MaterialIcons.ttf','MaterialCommunityIcons.ttf']
 ]
 
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"

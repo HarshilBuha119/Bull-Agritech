@@ -1,6 +1,5 @@
 import {Platform, Alert} from 'react-native';
 import {
-  check,
   request,
   PERMISSIONS,
   RESULTS,
@@ -59,8 +58,14 @@ export const requestStoragePermission = async (): Promise<boolean> => {
   return false;
 };
 
+export const requestLocationPermission = async (): Promise<boolean> => {
+  const result = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+  return result === RESULTS.GRANTED;
+};
+
 export const requestAllPermissions = async (): Promise<boolean> => {
   const camera = await requestCameraPermission();
-  const storage = await requestStoragePermission();
-  return camera && storage;
-};  
+  await requestStoragePermission();
+  await requestLocationPermission();
+  return camera;
+};

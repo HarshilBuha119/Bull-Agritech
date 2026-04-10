@@ -1,49 +1,71 @@
 import {NativeModules, Platform} from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 
 const {ExifModule} = NativeModules;
 
 export interface ExifData {
-  // GPS
   latitude: string;
   longitude: string;
   gpsLatRef: string;
   gpsLonRef: string;
-
-  // Timestamp
   dateTime: string;
   dateTimeOriginal: string;
-
-  // Device
   make: string;
   model: string;
-
-  // Image info
   width: string;
   height: string;
   orientation: string;
   flash: string;
-
-  // Camera settings
   focalLength: string;
   exposureTime: string;
   iso: string;
 }
 
+// For UI: what PhotoCard will consume
+export interface ExifDisplayRow {
+  key: string;
+  label: string;
+  icon: string; // MaterialCommunityIcons name
+  value: string;
+}
+
+export const getCurrentLocation = (): Promise<{lat: number; lon: number} | null> => {
+  return new Promise(resolve => {
+    Geolocation.getCurrentPosition(
+      position => {
+        resolve({
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+        });
+      },
+      () => resolve(null),
+      {enableHighAccuracy: true, timeout: 5000, maximumAge: 10000},
+    );
+  });
+};
+
 export const getExifData = async (imagePath: string): Promise<ExifData> => {
-  if (Platform.OS !== 'android') {
-    throw new Error('EXIF module only supported on Android');
-  }
+  if (Platform.OS !== 'android') throw new Error('Android only');
+  if (!ExifModule) throw new Error('ExifModule not found');
 
-  if (!ExifModule) {
-    throw new Error('ExifModule native module not found');
-  }
-
-  // Remove file:// prefix if present
   const cleanPath = imagePath.replace('file://', '');
 
   try {
     const data = await ExifModule.getExifData(cleanPath);
-    return data as ExifData;
+    const exif = data as ExifData;
+
+    // If GPS is missing from file, try to get current location
+    if (exif.latitude === 'N/A' || exif.longitude === 'N/A') {
+      const location = await getCurrentLocation();
+      if (location) {
+        exif.latitude = Math.abs(location.lat).toString();
+        exif.longitude = Math.abs(location.lon).toString();
+        exif.gpsLatRef = location.lat >= 0 ? 'N' : 'S';
+        exif.gpsLonRef = location.lon >= 0 ? 'E' : 'W';
+      }
+    }
+
+    return exif;
   } catch (error: any) {
     throw new Error(`Failed to read EXIF: ${error.message}`);
   }
@@ -55,56 +77,56 @@ export const formatGPS = (
   latRef: string,
   lonRef: string,
 ): string => {
-  if (lat === 'N/A' || lon === 'N/A') {
-    return 'GPS not available';
-  }
-  return `${lat} ${latRef}, ${lon} ${lonRef}`;
+  if (!lat || lat === 'N/A' || !lon || lon === 'N/A') return 'Not available';
+  const latNum = parseFloat(lat);
+  const lonNum = parseFloat(lon);
+  if (isNaN(latNum) || isNaN(lonNum)) return 'Not available';
+  return `${latNum.toFixed(5)}° ${latRef},  ${lonNum.toFixed(5)}° ${lonRef}`;
 };
 
-export const formatExifForDisplay = (exif: ExifData) => {
+export const formatExifForDisplay = (exif: ExifData): ExifDisplayRow[] => {
   return [
     {
-      label: '📅 Date Taken',
-      value: exif.dateTimeOriginal !== 'N/A'
-        ? exif.dateTimeOriginal
-        : exif.dateTime,
+      key: 'date',
+      label: 'Date Taken',
+      icon: 'calendar-outline',
+      value: exif.dateTimeOriginal !== 'N/A' ? exif.dateTimeOriginal : exif.dateTime,
     },
     {
-      label: '📱 Device',
-      value: exif.model !== 'N/A'
-        ? `${exif.make} ${exif.model}`
-        : 'N/A',
+      key: 'device',
+      label: 'Device',
+      icon: 'cellphone',
+      value: exif.model !== 'N/A' ? `${exif.make} ${exif.model}` : 'N/A',
     },
     {
-      label: '📍 GPS',
-      value: formatGPS(
-        exif.latitude,
-        exif.longitude,
-        exif.gpsLatRef,
-        exif.gpsLonRef,
-      ),
+      key: 'gps',
+      label: 'GPS',
+      icon: 'map-marker-outline',
+      value: formatGPS(exif.latitude, exif.longitude, exif.gpsLatRef, exif.gpsLonRef),
     },
     {
-      label: '📐 Resolution',
-      value: exif.width !== 'N/A'
-        ? `${exif.width} × ${exif.height}`
-        : 'N/A',
+      key: 'resolution',
+      label: 'Resolution',
+      icon: 'image-size-select-large',
+      value: exif.width !== 'N/A' ? `${exif.width} × ${exif.height}` : 'N/A',
     },
     {
-      label: '⚡ ISO',
+      key: 'iso',
+      label: 'ISO',
+      icon: 'iso',
       value: exif.iso,
     },
     {
-      label: '🔆 Exposure',
+      key: 'exposure',
+      label: 'Exposure',
+      icon: 'exposure',
       value: exif.exposureTime,
     },
     {
-      label: '🔭 Focal Length',
+      key: 'focalLength',
+      label: 'Focal Length',
+      icon: 'ray-start-end',
       value: exif.focalLength,
-    },
-    {
-      label: '💡 Flash',
-      value: exif.flash === '0' ? 'No Flash' : exif.flash,
     },
   ];
 };

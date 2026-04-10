@@ -1,8 +1,14 @@
 // src/navigation/AppNavigator.tsx
 
 import React from 'react';
-import {View, Text, StyleSheet, Image, ImageSourcePropType} from 'react-native';
-import {NavigationContainer} from '@react-navigation/native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ImageSourcePropType,
+  Platform,
+} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 
 import CameraScreen from '../screens/CameraScreen';
@@ -11,7 +17,7 @@ import {colors} from '../theme';
 
 const Tab = createBottomTabNavigator();
 
-// 👇 import your images
+// PNG icons
 const cameraIcon: ImageSourcePropType = require('../../assets/icons/Camera.png');
 const galleryIcon: ImageSourcePropType = require('../../assets/icons/Gallery.png');
 
@@ -22,16 +28,18 @@ type TabIconProps = {
 };
 
 const TabIcon = ({source, label, focused}: TabIconProps) => (
-  <View style={[styles.tabIcon, focused && styles.tabIconFocused]}>
-    <Image
-      source={source}
-      // tintColor lets you change color based on focus
-      style={[
-        styles.iconImage,
-        {tintColor: focused ? colors.green : colors.grey600},
-      ]}
-      resizeMode="contain"
-    />
+  <View style={styles.tabIcon}>
+    <View
+      style={[styles.iconWrapper, focused && styles.iconWrapperFocused]}>
+      <Image
+        source={source}
+        style={[
+          styles.iconImage,
+          {tintColor: focused ? colors.green : colors.grey600},
+        ]}
+        resizeMode="contain"
+      />
+    </View>
     <Text style={[styles.tabLabel, focused && styles.tabLabelFocused]}>
       {label}
     </Text>
@@ -40,34 +48,33 @@ const TabIcon = ({source, label, focused}: TabIconProps) => (
 
 const AppNavigator = () => {
   return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarStyle: styles.tabBar,
-          tabBarShowLabel: false,
-        }}>
-        <Tab.Screen
-          name="Camera"
-          component={CameraScreen}
-          options={{
-            tabBarIcon: ({focused}) => (
-              <TabIcon source={cameraIcon} label="Camera" focused={focused} />
-            ),
-          }}
-        />
-
-        <Tab.Screen
-          name="Gallery"
-          component={GalleryScreen}
-          options={{
-            tabBarIcon: ({focused}) => (
-              <TabIcon source={galleryIcon} label="Gallery" focused={focused} />
-            ),
-          }}
-        />
-      </Tab.Navigator>
-    </NavigationContainer>
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: styles.tabBar,
+        tabBarActiveTintColor: colors.green,
+        tabBarInactiveTintColor: colors.grey600,
+      }}>
+      <Tab.Screen
+        name="Camera"
+        component={CameraScreen}
+        options={{
+          tabBarIcon: ({focused}) => (
+            <TabIcon source={cameraIcon} label="Camera" focused={focused} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Gallery"
+        component={GalleryScreen}
+        options={{
+          tabBarIcon: ({focused}) => (
+            <TabIcon source={galleryIcon} label="Gallery" focused={focused} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
   );
 };
 
@@ -77,8 +84,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     height: 70,
-    paddingBottom: 8,
-    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 8,
+    paddingTop: 6,
     elevation: 12,
     shadowColor: colors.black,
     shadowOffset: {width: 0, height: -2},
@@ -86,13 +93,16 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   tabIcon: {
+    justifyContent: 'center',
+  },
+  iconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 6,
-    borderRadius: 16,
   },
-  tabIconFocused: {
+  iconWrapperFocused: {
     backgroundColor: colors.greenPale,
   },
   iconImage: {
@@ -100,10 +110,10 @@ const styles = StyleSheet.create({
     height: 22,
   },
   tabLabel: {
+    marginTop: 4,
     fontSize: 11,
     color: colors.grey600,
     fontWeight: '500',
-    marginTop: 2,
   },
   tabLabelFocused: {
     color: colors.green,
