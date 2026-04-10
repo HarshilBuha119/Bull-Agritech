@@ -29,19 +29,66 @@ export interface ExifDisplayRow {
   value: string;
 }
 
-export const getCurrentLocation = (): Promise<{lat: number; lon: number} | null> => {
-  return new Promise(resolve => {
-    Geolocation.getCurrentPosition(
-      position => {
-        resolve({
-          lat: position.coords.latitude,
-          lon: position.coords.longitude,
-        });
-      },
-      () => resolve(null),
-      {enableHighAccuracy: true, timeout: 5000, maximumAge: 10000},
+type LocationMode = 'balanced' | 'fast';
+
+const isMissingExifValue = (value?: string | null): boolean => {
+  if (value == null) return true;
+  const normalized = String(value).trim();
+  return normalized.length === 0 || normalized.toUpperCase() === 'N/A';
+};
+
+export const getCurrentLocation = (
+  mode: LocationMode = 'balanced',
+): Promise<{lat: number; lon: number} | null> => {
+  const tryGetPosition = (
+    options: {enableHighAccuracy: boolean; timeout: number; maximumAge: number},
+    label: string,
+  ): Promise<{lat: number; lon: number} | null> => {
+    return new Promise(resolve => {
+      Geolocation.getCurrentPosition(
+        position => {
+          resolve({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+          });
+        },
+        error => {
+          console.log(`getCurrentLocation ${label} error:`, error.code, error.message);
+          resolve(null);
+        },
+        options,
+      );
+    });
+  };
+
+  return (async () => {
+    if (mode === 'fast') {
+      // Fast mode for capture pipeline: prefer quick coarse/cached fix to avoid UI delay.
+      const coarse = await tryGetPosition(
+        {enableHighAccuracy: false, timeout: 2500, maximumAge: 300000},
+        'fast-fallback',
+      );
+      if (coarse) return coarse;
+
+      return tryGetPosition(
+        {enableHighAccuracy: true, timeout: 3000, maximumAge: 10000},
+        'fast-high-accuracy',
+      );
+    }
+
+    // Step 1: attempt precise GPS fix.
+    const precise = await tryGetPosition(
+      {enableHighAccuracy: true, timeout: 20000, maximumAge: 10000},
+      'high-accuracy',
     );
-  });
+    if (precise) return precise;
+
+    // Step 2: fallback to coarse/cached location for faster recovery.
+    return tryGetPosition(
+      {enableHighAccuracy: false, timeout: 12000, maximumAge: 300000},
+      'fallback',
+    );
+  })();
 };
 
 export const getExifData = async (imagePath: string): Promise<ExifData> => {
@@ -54,9 +101,9 @@ export const getExifData = async (imagePath: string): Promise<ExifData> => {
     const data = await ExifModule.getExifData(cleanPath);
     const exif = data as ExifData;
 
-    // If GPS is missing from file, try to get current location
-    if (exif.latitude === 'N/A' || exif.longitude === 'N/A') {
-      const location = await getCurrentLocation();
+    // If GPS is missing from file, do a quick location fallback so capture stays responsive.
+    if (isMissingExifValue(exif.latitude) || isMissingExifValue(exif.longitude)) {
+      const location = await getCurrentLocation('fast');
       if (location) {
         exif.latitude = Math.abs(location.lat).toString();
         exif.longitude = Math.abs(location.lon).toString();

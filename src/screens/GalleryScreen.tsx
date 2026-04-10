@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   RefreshControl, TouchableOpacity, StatusBar,
@@ -33,11 +33,9 @@ const GalleryScreen = () => {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadPhotos();
-    }, []),
-  );
+  useEffect(()=>{
+    loadPhotos();
+  },[])
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -57,7 +55,6 @@ const GalleryScreen = () => {
     <View style={styles.emptyContainer}>
       {error ? (
         <>
-          <Text style={styles.emptyEmoji}>⚠️</Text>
           <Text style={styles.emptyTitle}>Unable to Load Photos</Text>
           <Text style={styles.emptySubtitle}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => loadPhotos()}>
@@ -66,7 +63,6 @@ const GalleryScreen = () => {
         </>
       ) : (
         <>
-          <Text style={styles.emptyEmoji}>🔒</Text>
           <Text style={styles.emptyTitle}>Your Vault is Empty</Text>
           <Text style={styles.emptySubtitle}>
             Head to the Camera tab to capture and securely store your first photo.

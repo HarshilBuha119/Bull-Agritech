@@ -59,13 +59,16 @@ export const requestStoragePermission = async (): Promise<boolean> => {
 };
 
 export const requestLocationPermission = async (): Promise<boolean> => {
-  const result = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
-  return result === RESULTS.GRANTED;
+  const fineResult = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+  if (fineResult === RESULTS.GRANTED) return true;
+
+  const coarseResult = await request(PERMISSIONS.ANDROID.ACCESS_COARSE_LOCATION);
+  return coarseResult === RESULTS.GRANTED;
 };
 
 export const requestAllPermissions = async (): Promise<boolean> => {
   const camera = await requestCameraPermission();
-  await requestStoragePermission();
-  await requestLocationPermission();
-  return camera;
+  const storage = await requestStoragePermission();
+  const location = await requestLocationPermission();
+  return camera && storage && location;
 };

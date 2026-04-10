@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
-  TouchableOpacity,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';// <- add this
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { colors } from '../theme';
 import { formatExifForDisplay, ExifData } from '../services/exif';
 
@@ -58,34 +58,46 @@ const PhotoCard: React.FC<Props> = ({
 
   return (
     <View style={styles.card}>
-      {/* Image */}
       <View style={styles.imageWrapper}>
         {!imageError ? (
-          <Image
-            source={{ uri: url }}
-            style={styles.image}
-            resizeMode="cover"
-            onLoadEnd={() => setImageLoading(false)}
-            onError={() => {
-              setImageError(true);
-              setImageLoading(false);
-            }}
-          />
+          <>
+            <FastImage
+              style={[
+                styles.image,
+                imageLoading && { opacity: 0 },
+              ]}
+              source={{
+                uri: url,
+                priority: FastImage.priority.normal,
+              }}
+              resizeMode={FastImage.resizeMode.cover}
+              onLoadStart={() => {
+                setImageLoading(true);
+              }}
+              onLoadEnd={() => {
+                setImageLoading(false);
+              }}
+              onError={() => {
+                setImageError(true);
+                setImageLoading(false);
+              }}
+            />
+
+            {imageLoading && (
+              <View style={styles.imagePlaceholder}>
+                <ActivityIndicator color={colors.green} size="large" />
+              </View>
+            )}
+          </>
         ) : (
           <View style={styles.imageError}>
             <Icon
               name="image-off-outline"
               size={40}
-              color={colors.grey500}
+              color={colors.grey400}
               style={styles.imageErrorIcon}
             />
             <Text style={styles.imageErrorText}>Image unavailable</Text>
-          </View>
-        )}
-
-        {imageLoading && !imageError && (
-          <View style={styles.imagePlaceholder}>
-            <ActivityIndicator color={colors.green} size="large" />
           </View>
         )}
 
@@ -162,22 +174,27 @@ const PhotoCard: React.FC<Props> = ({
                 styles.exifRow,
                 i === exifRows.length - 1 && styles.exifRowLast,
               ]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                {
-                  row.icon === 'iso' || row.icon === 'exposure'?
-                    <MaterialIcons
-                      name="iso"
-                      size={14}
-                      color={colors.grey800}
-                      style={{ marginRight: 6 }}
-                    /> :
-                    <Icon
-                      name={row.icon}
-                      size={14}
-                      color={colors.grey800}
-                      style={{ marginRight: 6 }}
-                    />
-                }
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  flex: 1,
+                }}>
+                {row.icon === 'iso' || row.icon === 'exposure' ? (
+                  <MaterialIcons
+                    name="iso"
+                    size={14}
+                    color={colors.grey800}
+                    style={{ marginRight: 6 }}
+                  />
+                ) : (
+                  <Icon
+                    name={row.icon}
+                    size={14}
+                    color={colors.grey800}
+                    style={{ marginRight: 6 }}
+                  />
+                )}
 
                 <Text style={styles.exifLabel}>{row.label}</Text>
               </View>
@@ -212,7 +229,10 @@ const styles = StyleSheet.create({
     height: 230,
     backgroundColor: colors.grey200,
   },
-  image: { width: '100%', height: '100%' },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
   imagePlaceholder: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -300,7 +320,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
-  exifValue: { fontSize: 12, color: colors.black, flex: 1, textAlign: 'right' },
+  exifValue: {
+    fontSize: 12,
+    color: colors.black,
+    flex: 1,
+    textAlign: 'right',
+  },
 });
 
 export default PhotoCard;
